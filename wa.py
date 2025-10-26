@@ -1,78 +1,114 @@
-import pywhatkit
-import time
-from colorama import init, Fore, Style
 import webbrowser
+import time
+from urllib.parse import quote
+from colorama import init, Fore, Style
 
-# --- (Initialize colorama) ---
+# --- (تهيئة Colorama) ---
 init(autoreset=True)
 
 def print_banner():
-    """Prints the tool's welcome banner."""
+    """طباعة شعار الأداة."""
     print(Fore.GREEN + Style.BRIGHT + """
     ===================================================
     |                                                 |
-    |  WhatsApp Messenger Tool (Termux Compatible)    |
-    |                by Dragon                         |
+    |  WhatsApp Ultimate Messenger (Termux Fixed)     |
+    |                by Manus                         |
     |                                                 |
     ===================================================
     """)
-    print(Fore.YELLOW + "Disclaimer: Use this tool responsibly. Spamming can get your number banned.")
+    print(Fore.YELLOW + "Disclaimer: Use this tool responsibly. Spamming can get your number/group banned.")
 
-def get_user_input():
-    """Gets user input for the target number, message, and count."""
-    print(Fore.CYAN + "\nPlease enter the required details:")
-    phone_no = input(Fore.YELLOW + "[-] Enter target WhatsApp number (e.g., +1234567890): ")
+def get_send_option():
+    """الحصول على خيار الإرسال: فردي أم مجموعة."""
+    print(Fore.CYAN + "\nChoose an option:")
+    print(Fore.WHITE + "1. Send to a Person (Private Number)")
+    print(Fore.WHITE + "2. Send to a Group (Using Group ID)")
+    
+    while True:
+        choice = input(Fore.YELLOW + "[-] Your choice (1 or 2): ")
+        if choice in ['1', '2']:
+            return choice
+        else:
+            print(Fore.RED + "Invalid choice. Please enter 1 or 2.")
+
+def get_user_input(choice):
+    """الحصول على مدخلات المستخدم بناءً على الاختيار."""
+    if choice == '1':
+        target = input(Fore.YELLOW + "[-] Enter the target WhatsApp number (e.g., +1234567890): ")
+    else: # choice == '2'
+        print(Fore.MAGENTA + "\nHow to get the Group ID:")
+        print("1. Open WhatsApp Web in your browser.")
+        print("2. Open the group you want to send messages to.")
+        print("3. The Group ID is in the URL. It looks like: 123456789012345678@g.us")
+        target = input(Fore.YELLOW + "[-] Enter the Group ID: ")
+
     message = input(Fore.YELLOW + "[-] Enter the message to send (Arabic supported): ")
+    
     while True:
         try:
             count_str = input(Fore.YELLOW + "[-] Enter how many times to open the chat: ")
             count = int(count_str)
             if count > 0:
-                return phone_no, message, count
+                return target, message, count
             else:
                 print(Fore.RED + "Please enter a number greater than zero.")
         except ValueError:
             print(Fore.RED + "Invalid input. Please enter a valid number.")
 
-def open_whatsapp_chat(phone_no, message, count):
+def open_chat(target, message, count, choice):
     """
-    Opens WhatsApp chat in the browser without sending the message automatically.
-    This method is compatible with Termux.
+    يفتح محادثة واتساب في المتصفح باستخدام رابط URL مباشر.
+    هذه الطريقة متوافقة تمامًا مع Termux.
     """
     print(Fore.MAGENTA + "\n[!] Starting the process...")
-    print(Fore.RED + Style.BRIGHT + "[IMPORTANT] The script will open the chat for you. You must press SEND manually for each message.")
-    
+    print(Fore.RED + Style.BRIGHT + "[IMPORTANT] The script will open the chat. You MUST press SEND manually.")
+
+    # ترميز الرسالة بشكل صحيح لتكون جزءًا من الرابط
+    encoded_message = quote(message)
+
     for i in range(count):
+        # بناء الرابط بناءً على الاختيار (فردي أو مجموعة)
+        if choice == '1':
+            # رابط لإرسال رسالة لرقم شخصي
+            url = f"https://web.whatsapp.com/send?phone={target}&text={encoded_message}"
+        else: # choice == '2'
+            # رابط لإرسال رسالة لمجموعة
+            url = f"https://web.whatsapp.com/accept?code={target.replace('@g.us', '')}"
+            # ملاحظة: لا يمكن إدراج نص تلقائي في رابط دعوة المجموعة، سيفتح المحادثة فقط
+            if i == 0: # طباعة الملاحظة مرة واحدة فقط
+                 print(Fore.CYAN + "[INFO] For groups, the script opens the chat, you need to paste the message manually.")
+
+
         print(Fore.CYAN + f"\n[*] Preparing to open chat #{i + 1}...")
+        
         try:
-            # This function generates a URL and opens it. It does not need a GUI.
-            pywhatkit.sendwhatmsg_to_group_instantly(phone_no, message, wait_time=0) # We use this as a trick to just open the browser
-            
-            print(Fore.GREEN + f"[+] Chat #{i + 1} opened in browser. Please press SEND.")
-            
-            # Ask user to confirm before proceeding to the next one
-            if i < count - 1:
-                input(Fore.YELLOW + "    Press ENTER to prepare the next message...")
-
-        except webbrowser.Error:
-             print(Fore.RED + "[ERROR] Could not open browser. Make sure you have a web browser installed and Termux has permission.")
-             print(Fore.RED + "In Termux, run: termux-open-url https://google.com to test.")
-             break
+            # فتح الرابط في المتصفح الافتراضي
+            webbrowser.open(url)
+            print(Fore.GREEN + f"[+] Chat #{i + 1} opened. Please send the message and then return here.")
         except Exception as e:
-            print(Fore.RED + f"[!] An unexpected error occurred: {e}")
+            print(Fore.RED + f"[ERROR] Could not open browser: {e}")
+            print(Fore.RED + "In Termux, try running 'termux-open-url https://google.com' to test permissions.")
             break
+        
+        # الانتظار لتأكيد المستخدم قبل المتابعة
+        if i < count - 1:
+            input(Fore.YELLOW + "    Press ENTER to prepare the next message...")
+        
+        # فاصل زمني بسيط
+        time.sleep(2)
 
-    print(Fore.GREEN + Style.BRIGHT + f"\n[SUCCESS] Process finished. {count} chat windows were opened.")
+    print(Fore.GREEN + Style.BRIGHT + f"\n[SUCCESS] Process finished. {count} chat(s) were prepared.")
 
 def main():
-    """Main function to run the tool."""
+    """الدالة الرئيسية لتشغيل الأداة."""
     print_banner()
     try:
-        phone_no, message, count = get_user_input()
-        open_whatsapp_chat(phone_no, message, count)
+        choice = get_send_option()
+        target, message, count = get_user_input(choice)
+        open_chat(target, message, count, choice)
     except KeyboardInterrupt:
         print(Fore.RED + Style.BRIGHT + "\n\n[!] Process interrupted by user. Exiting.")
 
-# --- (Program entry point) ---
+# --- (نقطة بداية تشغيل البرنامج) ---
 if __name__ == "__main__":
     main()
