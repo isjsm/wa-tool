@@ -10,8 +10,7 @@ def print_banner():
     print(Fore.GREEN + Style.BRIGHT + """
     ========================================
     |                                      |
-    |      WhatsApp Spammer by Manus       |
-    |   https://github.com/your-username   |
+    |      WhatsApp Spammer by Dragon         |
     |                                      |
     ========================================
     """)
