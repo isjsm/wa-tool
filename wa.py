@@ -1,7 +1,6 @@
 import os
 import time
 import webbrowser
-from urllib.parse import quote
 
 # --- حاول استيراد المكتبات المطلوبة ---
 try:
@@ -9,13 +8,13 @@ try:
     from rich.panel import Panel
     from rich.prompt import Prompt, IntPrompt
     from rich.table import Table
-    from rich.live import Live
+    from rich.spinner import Spinner
     import pyperclip
 except ImportError:
     # إذا كانت المكتبات غير مثبتة، اطبع رسالة واضحة واخرج
-    print("Error: Required libraries are not installed.")
-    print("Please run this command in Termux:")
-    print("pip install rich pyperclip")
+    print("\nError: Required libraries are not installed.")
+    print("Please run this command in Termux first:")
+    print("pip install rich pyperclip\n")
     exit()
 
 # --- إعدادات الواجهة ---
@@ -26,21 +25,28 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def print_banner():
-    """طباعة شعار الأداة باستخدام Rich."""
-    banner_text = "[bold cyan]MW Messenger[/bold cyan]\n[yellow]By: Monky D Dragon[/yellow]"
+    """طباعة شعار الأداة - متوافق مع كل الإصدارات."""
+    title = "[bold green]WhatsApp Automation Tool[/bold green]"
+    author = "[yellow]By: Monky D Dragon[/yellow]"
     
-    # تم تغيير 'text_align' إلى 'justify' لحل المشكلة
+    # محاذاة النص يدوياً لضمان التوافق
+    width = 40
+    centered_title = title.center(width + 18) # (+18) to compensate for rich tags
+    centered_author = author.center(width + 18)
+
+    banner_text = f"{centered_title}\n{centered_author}"
+    
+    # تم إزالة معامل 'justify' بالكامل
     banner_panel = Panel(
         banner_text,
-        title="[bold green]WhatsApp Automation Tool[/bold green]",
-        border_style="green",
-        expand=False,
-        justify="center"  # <-- هذا هو التعديل الرئيسي
+        title="[bold cyan]MW Messenger[/bold cyan]",
+        border_style="cyan",
+        expand=False
     )
     console.print(banner_panel)
 
 def normalize_phone_number(phone: str) -> str:
-    """تنسيق رقم الهاتف وإضافة '+' إذا لم تكن موجودة."""
+    """تنسيق رقم الهاتف وإزالة المسافات وإضافة '+'."""
     phone = phone.strip().replace(" ", "")
     return f"+{phone}" if not phone.startswith('+') else phone
 
@@ -49,11 +55,12 @@ def normalize_phone_number(phone: str) -> str:
 def get_target_details():
     """الحصول على تفاصيل الهدف والرسالة من المستخدم."""
     
-    # --- اختيار نوع الهدف ---
-    table = Table(show_header=False, border_style="dim", box=None)
-    table.add_row("[bold cyan][1][/bold cyan]", "Send to a Person")
-    table.add_row("[bold cyan][2][/bold cyan]", "Send to a Group")
-    table.add_row("[bold red][0][/bold red]", "Exit")
+    table = Table.grid(expand=True)
+    table.add_column(style="cyan", justify="right")
+    table.add_column(style="white")
+    table.add_row("[1]", "  Send to a Person")
+    table.add_row("[2]", "  Send to a Group")
+    table.add_row("[0]", "  Exit")
     
     console.print(Panel(table, title="[bold blue]STEP 1: Choose Target[/bold blue]", border_style="blue", padding=(1, 2)))
     choice = Prompt.ask("   [bold magenta]└──> Enter your choice[/bold magenta]", choices=["1", "2", "0"], default="1")
@@ -61,13 +68,12 @@ def get_target_details():
     if choice == "0":
         return None
 
-    # --- إدخال تفاصيل الهدف ---
     console.print(Panel("[dim]Enter the target details below.[/dim]", title="[bold blue]STEP 2: Target & Message[/bold blue]", border_style="blue"))
     
     if choice == '1':
         target = Prompt.ask("   [bold magenta]└──> Enter TARGET phone number[/bold magenta]")
         target = normalize_phone_number(target)
-    else: # choice == '2'
+    else:
         console.print("[yellow]Hint: Get the Group ID from the group's URL in WhatsApp Web.[/yellow]")
         target = Prompt.ask("   [bold magenta]└──> Enter the Group ID[/bold magenta]")
 
@@ -76,37 +82,39 @@ def get_target_details():
     
     return choice, target, message, count
 
-def run_process(details):
-    """تشغيل عملية فتح المتصفح وإرسال الرسائل."""
+def confirm_and_run(details):
+    """عرض ملخص للتأكيد ثم بدء التنفيذ."""
     if not details:
         console.print("\n[yellow]Exiting tool. Goodbye![/yellow]")
         return
 
     choice, target, message, count = details
     
-    # --- نسخ الرسالة إلى الحافظة ---
     try:
         pyperclip.copy(message)
-        copy_message = "✅ [green]Message copied to clipboard! Ready to PASTE.[/green]"
+        copy_status = "✅ [green]Ready to PASTE[/green]"
     except pyperclip.PyperclipException:
-        copy_message = "❌ [red]Could not copy to clipboard. You'll have to type it manually.[/red]"
+        copy_status = "❌ [red]Manual typing needed[/red]"
+
+    summary_table = Table.grid(expand=True)
+    summary_table.add_column(style="bold yellow", justify="right")
+    summary_table.add_column()
+    summary_table.add_row("Target:", f"  [cyan]{target}[/cyan]")
+    summary_table.add_row("Messages:", f"  [cyan]{count}[/cyan]")
+    summary_table.add_row("Clipboard:", f"  {copy_status}")
+
+    console.print(Panel(summary_table, title="[bold blue]STEP 3: Confirmation[/bold blue]", border_style="blue"))
+    
+    if Prompt.ask("[bold]   └──> Start the process? (y/n)[/bold]", choices=["y", "n"], default="y") == "n":
+        console.print("[yellow]Operation cancelled.[/yellow]")
+        return
 
     # --- بدء التنفيذ ---
-    exec_panel = Panel(
-        f"Target: [cyan]{target}[/cyan]\n"
-        f"Messages: [cyan]{count}[/cyan]\n\n"
-        f"[bold yellow]IMPORTANT:[/] You must [u]PASTE[/u] the message and press [u]SEND[/u] manually.\n"
-        f"{copy_message}",
-        title="[bold blue]STEP 3: Execution[/bold blue]",
-        border_style="blue"
-    )
-    console.print(exec_panel)
-    Prompt.ask("[bold cyan]   Press ENTER to begin...[/bold cyan]")
-
+    console.rule("[bold green]Execution Started[/bold green]")
     for i in range(count):
-        console.rule(f"[bold]Opening Chat #{i + 1} of {count}[/bold]")
+        console.print(f"\n[cyan]>>> Opening Chat #{i + 1} of {count}...[/cyan]")
         
-        url = f"https://web.whatsapp.com/send/?phone={target}&app_absent=0" if choice == '1' else f"https://web.whatsapp.com/accept?code={target.replace('@g.us', '')}"
+        url = f"https://web.whatsapp.com/send/?phone={target}" if choice == '1' else f"https://web.whatsapp.com/accept?code={target.replace('@g.us', '')}"
 
         try:
             webbrowser.open(url)
@@ -116,10 +124,9 @@ def run_process(details):
             break
         
         if i < count - 1:
-            # استخدام Live لعرض عداد تنازلي
-            with Live(console=console, screen=False, auto_refresh=False) as live:
-                for sec in range(5, 0, -1):
-                    live.update(f"[dim]   ...Waiting for you... Next message in {sec}s. Press ENTER to skip.[/dim]", refresh=True)
+            spinner = Spinner("dots", text=" Waiting for you...")
+            with console.status(spinner) as status:
+                for _ in range(5):
                     time.sleep(1)
             console.print("[cyan]   ...Preparing next message...[/cyan]")
 
@@ -131,6 +138,7 @@ if __name__ == "__main__":
     print_banner()
     try:
         details = get_target_details()
-        run_process(details)
+        confirm_and_run(details)
     except KeyboardInterrupt:
         console.print("\n\n[bold red]❌ Process interrupted by user. Exiting.[/bold red]")
+
